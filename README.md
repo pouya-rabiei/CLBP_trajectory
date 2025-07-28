@@ -1,53 +1,62 @@
 # CLBP_trajectory
+
 Machine learning classification of 1500 chronic low back pain patients into 4 clinical clusters using nested cross-validation and SHAP for model interpretation.
 
-# CLBP Cluster Classification
-
-This repository contains the full machine learning pipeline for classifying chronic low back pain (CLBP) patients into four data-driven clusters using baseline features. The pipeline uses **nested cross-validation** for robust model selection and evaluation, and **SHAP (SHapley Additive exPlanations)** for interpretability.
-
 ---
-## Objective
 
-- Build predictive models for **cluster membership** based on baseline biopsychosocial variables.
+## 📌 Project Overview
+
+This repository contains the full machine learning pipeline for classifying chronic low back pain (CLBP) patients into four data-driven clusters using baseline biopsychosocial features. The pipeline uses **nested cross-validation** for robust model evaluation and **SHAP (SHapley Additive exPlanations)** for model interpretability.
 
 ---
 
-## Methods
+## 🎯 Objective
 
-### Models Used:
+- Predict **cluster membership** based on baseline features
+- Identify key predictors driving classification decisions
+
+---
+
+## 🧠 Methods
+
+### 🔍 Models Used:
 - Logistic Regression
 - Random Forest
 - XGBoost
-- Support Vector Classification (SVC)
+- Support Vector Classifier (SVC)
 - Multi-Layer Perceptron (MLP)
 
-### Validation:
+### 🔁 Validation Strategy:
 - **Nested 5-Fold Cross-Validation**
-  - Outer loop: unbiased model evaluation
-  - Inner loop: hyperparameter tuning & feature selection
+  - Outer loop: unbiased performance estimation
+  - Inner loop: hyperparameter tuning and feature selection
 
-### Interpretability:
+### 📈 Interpretability:
 - SHAP summary plots
-- SHAP feature impact per cluster
+- Cluster-wise feature impact using SHAP values
 
 ---
 
-## Dataset
+## 🧪 Dataset
 
-- **Sample Size**: Near 1500 individuals with chronic low back pain
-- **Features**:
-  - Psychological: depression, fear, catastrophizing, sleep quality
-  - Pain-related: intensity, duration, interference, impact
-  - Demographics: age, sex, BMI, smoking, education, employment status, comorbidities
-- **Target**: 4 pre-defined clusters (derived via Latent Class Growth analysis)
+- **Sample size**: ~1500 individuals with chronic low back pain
+- **Features include**:
+  - *Psychological*: depression, fear, catastrophizing, sleep quality
+  - *Pain-related*: intensity, duration, interference, impact
+  - *Demographic*: age, sex, BMI, smoking, education, employment status, comorbidities
+- **Target**: 4 pre-defined clusters (from Latent Class Growth Analysis)
 
 ---
 
-### Installation
-you may need to install shap via:
+## 🛠 Installation
+
+Make sure Python ≥ 3.8 is installed. Then install dependencies:
 
 ```bash
 pip install -r requirements.txt
 
-License
-This project is licensed under the MIT License – see the LICENSE file for details.
+If SHAP fails to install, try:
+
+pip install shap
+or
+conda install -c conda-forge shap
