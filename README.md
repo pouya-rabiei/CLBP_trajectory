@@ -44,6 +44,7 @@ This repository contains the full machine learning pipeline for classifying chro
 ---
 
 ### Installation
+you may need to install shap via:
 
 ```bash
 pip install -r requirements.txt
