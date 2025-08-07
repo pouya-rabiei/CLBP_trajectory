@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from collections import defaultdict
 
 # Load the dataset
-df = pd.read_csv("path\\to\\your\\data.csv")
+df = pd.read_csv("'... \\QBPC\\Traj study'\\data.csv")
 
 # Define color map
 color_map = {
