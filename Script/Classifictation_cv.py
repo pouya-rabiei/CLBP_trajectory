@@ -470,10 +470,10 @@ for name, model_instance in classifiers.items():
                 explainer = shap.LinearExplainer(model_fold, masker=X_test_outer_transformed_np)
             elif name in ["Random Forest"]: # ", "XGBoost"
                 explainer = shap.TreeExplainer(model_fold)
-            # elif name in ["Multi-Layer Perceptron", "Support Vector Classifier"]:
-            #     explainer = shap.KernelExplainer(
-            #         model_fold.predict_proba,
-            #         X_test_outer_transformed_np)
+            elif name in ["Multi-Layer Perceptron", "Support Vector Classifier"]:
+                explainer = shap.KernelExplainer(
+                    model_fold.predict_proba,
+                    X_test_outer_transformed_np)
             else:
                 raise ValueError(f"SHAP not supported for {name} model.")
             # Transform the test set using the preprocessor
