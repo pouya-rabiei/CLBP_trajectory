@@ -24,7 +24,6 @@ This repository contains the full machine learning pipeline for classifying chro
 - Random Forest
 - XGBoost
 - Support Vector Classifier (SVC)
-- Multi-Layer Perceptron (MLP)
 
 ### Validation Strategy:
 - **Nested 5-Fold Cross-Validation**
@@ -39,7 +38,7 @@ This repository contains the full machine learning pipeline for classifying chro
 
 ## Dataset
 
-- **Sample size**: ~1500 individuals with chronic low back pain
+- **Sample size**: individuals with chronic low back pain
 - **Features include**:
   - *Psychological*: depression, fear, catastrophizing, sleep quality
   - *Pain-related*: intensity, duration, interference, impact
