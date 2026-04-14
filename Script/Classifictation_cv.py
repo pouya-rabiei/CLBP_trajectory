@@ -358,16 +358,26 @@ for name, model_instance in classifiers.items():
     ba_test  = balanced_accuracy_score(y_test, y_test_pred)
     mcc_test = matthews_corrcoef(y_test, y_test_pred)
     
-    # Per class AUC score
+    # Per class scores
     y_test_bin = label_binarize(y_test, classes=np.arange(num_classes))
-
-    per_class_auc = {}
+    
+    per_class_score = {}
     for c, cls in enumerate(original_class_labels):
         auc_c = roc_auc_score(
             y_test_bin[:, c],
             y_test_prob[:, c]
         )
-        per_class_auc[f"AUROC_class_{cls}"] = auc_c
+        ba_c = balanced_accuracy_score(
+            y_test_bin[:, c],
+            (y_test_prob[:, c] >= 0.5).astype(int)
+        )
+        mcc_c = matthews_corrcoef(
+            y_test_bin[:, c],
+            (y_test_prob[:, c] >= 0.5).astype(int)
+        )
+        per_class_score[f"AUROC_class_{cls}"] = auc_c
+        per_class_score[f"BA_class_{cls}"] = ba_c
+        per_class_score[f"MCC_class_{cls}"] = mcc_c
     
     # Confusion matrix
     cm = confusion_matrix(y_test, y_test_pred, labels=np.arange(num_classes), normalize="true")
@@ -570,7 +580,7 @@ for name, model_instance in classifiers.items():
         "Test_AUROC": auc_test,
         "Test_BA": ba_test,
         "Test_MCC": mcc_test,
-        **per_class_auc,
+        **per_class_score,
         "Permutation_Orig_AUROC": perm_orig,
         "Permutation_Mean_AUROC": perm_mean,
         "Permutation_Std_AUROC": perm_std,
@@ -611,30 +621,64 @@ if not fold_df.empty:
                 bbox_inches="tight", dpi=900, transparent=True)
     plt.close()
     
-class_auc_df = results_df.melt(
-    id_vars="Model",
-    value_vars=["AUROC_class_1", "AUROC_class_2", "AUROC_class_3", "AUROC_class_4"],
-    var_name="Cluster",
-    value_name="AUROC"
-)
+# Per-class metrics to plot separately
+per_class_metrics = {
+    "AUROC": {
+        "cols": [f"AUROC_class_{cls}" for cls in original_class_labels],
+        "ylabel": "AUROC",
+        "ylim": (0.5, 1.0),
+        "filename": "Per-class AUROC by classifier.svg",
+        "title": "Per-class AUROC by classifier",
+    },
+    "BA": {
+        "cols": [f"BA_class_{cls}" for cls in original_class_labels],
+        "ylabel": "Balanced Accuracy",
+        "ylim": (0.0, 1.0),
+        "filename": "Per-class BA by classifier.svg",
+        "title": "Per-class Balanced Accuracy by classifier",
+    },
+    "MCC": {
+        "cols": [f"MCC_class_{cls}" for cls in original_class_labels],
+        "ylabel": "MCC",
+        "ylim": (-1.0, 1.0),
+        "filename": "Per-class MCC by classifier.svg",
+        "title": "Per-class MCC by classifier",
+    },
+}
 
-plt.figure(figsize=(9, 5))
-sns.barplot(
-    data=class_auc_df,
-    x="Model",
-    y="AUROC",
-    hue="Cluster",
-    errorbar=None
-)
-plt.xticks(rotation=45, ha="right", fontsize=16)
-plt.yticks(fontsize=16)
-plt.xlabel("Classifier", fontsize=16)
-plt.ylabel("AUROC", fontsize=16)
-plt.ylim(0.5, 1.0)
-plt.title("Per-class AUROC by classifier", fontsize=16)
-plt.tight_layout()
-plt.savefig(opj(derivpath, "Per-class AUROC by classifier.svg"),
-                bbox_inches="tight", dpi=900, transparent=True)
-plt.show()
+for metric_name, cfg in per_class_metrics.items():
+    class_df = results_df.melt(
+        id_vars="Model",
+        value_vars=cfg["cols"],
+        var_name="Cluster",
+        value_name=metric_name
+    )
+
+    # cleaner cluster labels: AUROC_class_1 -> Class 1
+    class_df["Cluster"] = class_df["Cluster"].str.extract(r"class_(.+)$")[0]
+    class_df["Cluster"] = "Class " + class_df["Cluster"].astype(str)
+
+    plt.figure(figsize=(9, 5))
+    sns.barplot(
+        data=class_df,
+        x="Cluster",
+        y=metric_name,
+        hue="Model",
+        errorbar=None
+    )
+    plt.xticks(rotation=45, ha="right", fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.xlabel("Cluster", fontsize=16)
+    plt.ylabel(cfg["ylabel"], fontsize=16)
+    plt.ylim(cfg["ylim"])
+    plt.title(cfg["title"], fontsize=16)
+    plt.tight_layout()
+    plt.savefig(
+        opj(derivpath, cfg["filename"]),
+        bbox_inches="tight",
+        dpi=900,
+        transparent=True
+    )
+    plt.close()
     
 print(f"\nDONE. Outputs saved in: {derivpath}")
