@@ -25,7 +25,9 @@ from sklearn.metrics import (
     roc_auc_score, 
     confusion_matrix, 
     make_scorer,
-    matthews_corrcoef 
+    matthews_corrcoef,
+    precision_score,
+    f1_score,
 )
 from sklearn.calibration import CalibrationDisplay
 from imblearn.pipeline import Pipeline as ImbPipeline
@@ -45,13 +47,13 @@ import traceback
 # %%
 # Define the path
 basepath = Path.cwd()
-derivpath = basepath / "path_to_the_file"
+derivpath = basepath / "classifcation_results_all_scores"
 if not os.path.exists(derivpath):
     os.makedirs(derivpath)
     
 # %%
 # Load the data
-df_path = opj(basepath, "file")
+df_path = opj(basepath, "data_3outof5_classification.csv")
 df = pd.read_csv(df_path)
 
 # %%
@@ -286,6 +288,7 @@ scoring={
 # %%
 results = []
 fold_rows = []
+per_class_rows = []
 
 for name, model_instance in classifiers.items():
     print(f"\n--- Nested CV for {name} ---")
@@ -348,37 +351,45 @@ for name, model_instance in classifiers.items():
 
     best_final  = grid_search.best_estimator_
     best_params = grid_search.best_params_
-    print("  Best params (from full TRAIN grid):", best_params)
+    print(" Best params (from full TRAIN grid):", best_params)
 
     # Evaluate once on TEST
     y_test_prob = best_final.predict_proba(X_test)
     y_test_pred = np.argmax(y_test_prob, axis=1)
+    
+    test_auc_macro = roc_auc_score(y_test, y_test_prob, multi_class="ovo", average="macro")
+    test_precision_macro = precision_score(y_test, y_test_pred, average="macro", zero_division=0)
+    test_f1_macro = f1_score(y_test, y_test_pred, average="macro", zero_division=0)
+    test_ba = balanced_accuracy_score(y_test, y_test_pred)
+    test_mcc = matthews_corrcoef(y_test, y_test_pred)
 
-    auc_test = roc_auc_score(y_test, y_test_prob, multi_class="ovo", average="macro")
-    ba_test  = balanced_accuracy_score(y_test, y_test_pred)
-    mcc_test = matthews_corrcoef(y_test, y_test_pred)
-    
-    # Per class scores
-    y_test_bin = label_binarize(y_test, classes=np.arange(num_classes))
-    
+    # Per class scores (one-vs-rest)
     per_class_score = {}
     for c, cls in enumerate(original_class_labels):
-        auc_c = roc_auc_score(
-            y_test_bin[:, c],
-            y_test_prob[:, c]
-        )
-        ba_c = balanced_accuracy_score(
-            y_test_bin[:, c],
-            (y_test_prob[:, c] >= 0.5).astype(int)
-        )
-        mcc_c = matthews_corrcoef(
-            y_test_bin[:, c],
-            (y_test_prob[:, c] >= 0.5).astype(int)
-        )
-        per_class_score[f"AUROC_class_{cls}"] = auc_c
-        per_class_score[f"BA_class_{cls}"] = ba_c
-        per_class_score[f"MCC_class_{cls}"] = mcc_c
-    
+        y_true_c = (y_test.to_numpy() == c).astype(int)
+        y_pred_c = (y_test_pred == c).astype(int)
+
+        tn, fp, fn, tp = confusion_matrix(y_true_c, y_pred_c, labels=[0, 1]).ravel()
+
+        auc_c = roc_auc_score(y_true_c, y_test_prob[:, c])
+        ppv_c = tp / (tp + fp) if (tp + fp) > 0 else np.nan
+        npv_c = tn / (tn + fn) if (tn + fn) > 0 else np.nan
+        f1_c = f1_score(y_true_c, y_pred_c, zero_division=0)
+        ba_c = balanced_accuracy_score(y_true_c, y_pred_c)
+        mcc_c = matthews_corrcoef(y_true_c, y_pred_c)
+
+        per_class_rows.append({
+            "Model": name,
+            "Class": cls,
+            "AUROC": auc_c,
+            "PPV": ppv_c,
+            "NPV": npv_c,
+            "F1": f1_c,
+            "BA": ba_c,
+            "MCC": mcc_c,
+            "Support": int(y_true_c.sum()),
+        })
+        
     # Confusion matrix
     cm = confusion_matrix(y_test, y_test_pred, labels=np.arange(num_classes), normalize="true")
     plt.figure(figsize=(4, 4))
@@ -577,10 +588,11 @@ for name, model_instance in classifiers.items():
         "Train_OOF_AUROC": auc_oof,
         "Train_OOF_BA": ba_oof,
         "Train_OOF_MCC": mcc_oof,
-        "Test_AUROC": auc_test,
-        "Test_BA": ba_test,
-        "Test_MCC": mcc_test,
-        **per_class_score,
+        "Test_AUROC_macro_ovo": test_auc_macro,
+        "Test_Precision_macro": test_precision_macro,
+        "Test_F1_macro": test_f1_macro,
+        "Test_BA": test_ba,
+        "Test_MCC": test_mcc,
         "Permutation_Orig_AUROC": perm_orig,
         "Permutation_Mean_AUROC": perm_mean,
         "Permutation_Std_AUROC": perm_std,
@@ -588,97 +600,12 @@ for name, model_instance in classifiers.items():
         "BestParams": str(best_params),
     })
 results_df = pd.DataFrame(results)
-results_df.to_csv(opj(f"{derivpath}/results_summary.csv"), index=False)
-print(results_df[[
-    "Model", 
-    "Train_OOF_AUROC", 
-    "Test_AUROC", 
-    "Train_OOF_BA", 
-    "Test_BA", 
-    "Train_OOF_MCC", 
-    "Test_MCC"
-    ]])
+results_df.to_csv(opj(derivpath, "results_summary.csv"), index=False)
+
+per_class_df = pd.DataFrame(per_class_rows)
+per_class_df.to_csv(opj(derivpath, "per_class_metrics_summary.csv"), index=False)
 
 fold_df = pd.DataFrame(fold_rows)
-fold_df.to_csv(opj(f"{derivpath}/fold_scores_train_only.csv"), index=False)
+fold_df.to_csv(opj(derivpath, "fold_scores_train_only.csv"), index=False)
 
-if not fold_df.empty:
-    fold_long = fold_df.melt(
-        id_vars=["Model", "Fold"],
-        value_vars=["AUROC", "BA", "MCC"],
-        var_name="Metric",
-        value_name="Score",
-    )
-    plt.figure(figsize=(6, 4))
-    sns.stripplot(data=fold_long, x="Model", y="Score", hue="Metric",
-                  dodge=True, jitter=0.25)
-    plt.xticks(rotation=45, ha="right", fontsize=16)
-    plt.yticks(fontsize=16)
-    plt.ylabel("Score", fontsize=16)
-    plt.title("Nested CV fold scores", fontsize=16)
-    plt.tight_layout()
-    plt.savefig(opj(derivpath, "train_nested_fold_scores_dotplot.svg"),
-                bbox_inches="tight", dpi=900, transparent=True)
-    plt.close()
-    
-# Per-class metrics to plot separately
-per_class_metrics = {
-    "AUROC": {
-        "cols": [f"AUROC_class_{cls}" for cls in original_class_labels],
-        "ylabel": "AUROC",
-        "ylim": (0.5, 1.0),
-        "filename": "Per-cluster AUROC by classifier.svg",
-        "title": "Per-cluster AUROC by classifier",
-    },
-    "BA": {
-        "cols": [f"BA_class_{cls}" for cls in original_class_labels],
-        "ylabel": "BA",
-        "ylim": (0.0, 1.0),
-        "filename": "Per-cluster BA by classifier.svg",
-        "title": "Per-cluster BA by classifier",
-    },
-    "MCC": {
-        "cols": [f"MCC_class_{cls}" for cls in original_class_labels],
-        "ylabel": "MCC",
-        "ylim": (-1.0, 1.0),
-        "filename": "Per-cluster MCC by classifier.svg",
-        "title": "Per-cluster MCC by classifier",
-    },
-}
-
-for metric_name, cfg in per_class_metrics.items():
-    class_df = results_df.melt(
-        id_vars="Model",
-        value_vars=cfg["cols"],
-        var_name="Cluster",
-        value_name=metric_name
-    )
-
-    # cleaner cluster labels: AUROC_class_1 -> Class 1
-    class_df["Cluster"] = class_df["Cluster"].str.extract(r"class_(.+)$")[0]
-    class_df["Cluster"] = "Class " + class_df["Cluster"].astype(str)
-
-    plt.figure(figsize=(9, 5))
-    sns.barplot(
-        data=class_df,
-        x="Cluster",
-        y=metric_name,
-        hue="Model",
-        errorbar=None
-    )
-    plt.xticks(rotation=45, ha="right", fontsize=16)
-    plt.yticks(fontsize=16)
-    plt.xlabel("Cluster", fontsize=16)
-    plt.ylabel(cfg["ylabel"], fontsize=16)
-    plt.ylim(cfg["ylim"])
-    plt.title(cfg["title"], fontsize=16)
-    plt.tight_layout()
-    plt.savefig(
-        opj(derivpath, cfg["filename"]),
-        bbox_inches="tight",
-        dpi=900,
-        transparent=True
-    )
-    plt.close()
-    
 print(f"\nDONE. Outputs saved in: {derivpath}")
